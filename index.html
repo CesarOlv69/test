@@ -1885,6 +1885,11 @@ function closeGbPlayer(){
 }
 gbLoadMeta();
 
+// Service Worker — intercepte le 404 fr-FR.json d'EmulatorJS
+if('serviceWorker' in navigator){
+  navigator.serviceWorker.register('./sw.js').catch(e=>console.log('SW:',e));
+}
+
 // Détecte si l'app est en mode PWA (standalone) ou dans Safari
 const isPWA = window.navigator.standalone === true || window.matchMedia('(display-mode: standalone)').matches;
 if(!isPWA){
