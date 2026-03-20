@@ -84,7 +84,7 @@ document.getElementById('rom-input').addEventListener('change', function(e) {
       gba = new GameBoyAdvance();
       gba.setCanvas(document.getElementById('screen'));
       gba.logLevel = gba.LOG_ERROR;
-      gba.setBios(null, true);
+      // gbajs2 : pas besoin de BIOS, on passe directement à la ROM
       if (gba.setRom(ev.target.result)) {
         gba.runStable();
         document.getElementById('status').textContent = '🎮 ' + file.name;
