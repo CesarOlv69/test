@@ -6,78 +6,105 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <title>GBA Test</title>
 <style>
-body{margin:0;background:#000;display:flex;flex-direction:column;align-items:center;height:100vh;overflow:hidden}
-canvas{display:block;image-rendering:pixelated;width:100%;max-width:480px}
-.controls{display:flex;flex-wrap:wrap;gap:8px;padding:8px;justify-content:center}
-button{padding:12px 20px;background:#333;color:#fff;border:none;border-radius:8px;font-size:14px;cursor:pointer;-webkit-tap-highlight-color:transparent}
-#file-btn{background:#FFCB05;color:#000;font-weight:bold;width:100%;max-width:300px;padding:14px}
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#111;display:flex;flex-direction:column;align-items:center;min-height:100vh;font-family:sans-serif;color:#fff}
+#screen{display:block;image-rendering:pixelated;width:100%;max-width:480px;background:#000}
+#status{padding:8px;font-size:12px;color:#aaa;text-align:center}
+.row{display:flex;gap:8px;padding:4px 8px;justify-content:center;align-items:center}
+.btn{padding:14px 22px;background:#333;color:#fff;border:none;border-radius:8px;font-size:14px;cursor:pointer;-webkit-tap-highlight-color:transparent;user-select:none;touch-action:none}
+.btn:active{background:#555}
+.btn-a{background:#CC0000}
+.btn-b{background:#444}
+.btn-load{background:#FFCB05;color:#000;font-weight:bold;padding:14px 30px;width:90%;max-width:300px}
 </style>
 </head>
 <body>
+
 <canvas id="screen" width="240" height="160"></canvas>
-<div class="controls">
-  <label id="file-btn">📁 Charger ROM GBA
-    <input type="file" accept="*/*" id="rom-file" style="display:none">
+<div id="status">Charge une ROM pour commencer</div>
+
+<div class="row">
+  <label class="btn btn-load">📁 Charger ROM GBA
+    <input type="file" accept="*/*" id="rom-input" style="display:none">
   </label>
-  <button id="btn-start">START</button>
-  <button id="btn-select">SELECT</button>
-</div>
-<div class="controls">
-  <button id="btn-l">L</button>
-  <button id="dpad-up">▲</button>
-  <button id="btn-r">R</button>
-</div>
-<div class="controls">
-  <button id="dpad-left">◀</button>
-  <button id="dpad-center" style="background:#111">·</button>
-  <button id="dpad-right">▶</button>
-</div>
-<div class="controls">
-  <button id="dpad-down">▼</button>
-</div>
-<div class="controls">
-  <button id="btn-b" style="background:#444">B</button>
-  <button id="btn-a" style="background:#CC0000">A</button>
 </div>
 
-<script src="https://cdn.jsdelivr.net/gh/andychase/gbajs2@master/js/core/gba.js"></script>
+<div class="row">
+  <button class="btn" id="btn-l">L</button>
+  <button class="btn" id="dpad-u">▲</button>
+  <button class="btn" id="btn-r">R</button>
+  <button class="btn" id="btn-select">SEL</button>
+  <button class="btn" id="btn-start">STA</button>
+</div>
+<div class="row">
+  <button class="btn" id="dpad-l">◀</button>
+  <button class="btn" id="dpad-d">▼</button>
+  <button class="btn" id="dpad-r">▶</button>
+  <button class="btn btn-b" id="btn-b">B</button>
+  <button class="btn btn-a" id="btn-a">A</button>
+</div>
+
+<!-- Charge gbajs depuis GitHub raw -->
 <script>
+// On charge le script gbajs2 depuis raw.githubusercontent
+const s = document.createElement('script');
+s.src = 'https://raw.githubusercontent.com/andychase/gbajs2/master/js/core/gba.js';
+s.onload = () => document.getElementById('status').textContent = '✅ Émulateur prêt — charge une ROM';
+s.onerror = () => {
+  // Fallback: essaie depuis jsDelivr
+  const s2 = document.createElement('script');
+  s2.src = 'https://cdn.jsdelivr.net/gh/andychase/gbajs2/js/core/gba.js';
+  s2.onload = () => document.getElementById('status').textContent = '✅ Émulateur prêt';
+  s2.onerror = () => document.getElementById('status').textContent = '❌ Erreur de chargement';
+  document.body.appendChild(s2);
+};
+document.body.appendChild(s);
+
 let gba = null;
 
-document.getElementById('rom-file').addEventListener('change', function(e) {
+document.getElementById('rom-input').addEventListener('change', function(e) {
   const file = e.target.files[0];
   if (!file) return;
+  document.getElementById('status').textContent = '⏳ Chargement de ' + file.name + '...';
   const reader = new FileReader();
   reader.onload = function(ev) {
-    const canvas = document.getElementById('screen');
-    if (gba) {
-      gba.pause();
-      gba = null;
+    try {
+      if (gba) { try{gba.pause();}catch(e){} gba = null; }
+      gba = new GameBoyAdvance();
+      gba.setCanvas(document.getElementById('screen'));
+      gba.logLevel = gba.LOG_ERROR;
+      gba.setBios(null, true); // bios optionnel
+      const result = gba.setRom(ev.target.result);
+      if (result) {
+        gba.runStable();
+        document.getElementById('status').textContent = '🎮 En jeu : ' + file.name;
+      } else {
+        document.getElementById('status').textContent = '❌ ROM invalide';
+      }
+    } catch(err) {
+      document.getElementById('status').textContent = '❌ Erreur: ' + err.message;
+      console.error(err);
     }
-    gba = new GameBoyAdvance();
-    gba.setCanvas(canvas);
-    gba.setBios(null);
-    gba.setRom(ev.target.result);
-    gba.runStable();
   };
   reader.readAsArrayBuffer(file);
 });
 
-// Key mapping
-const keyMap = {
-  'btn-a': 0, 'btn-b': 1, 'btn-select': 2, 'btn-start': 3,
-  'dpad-right': 4, 'dpad-left': 5, 'dpad-up': 6, 'dpad-down': 7,
-  'btn-r': 8, 'btn-l': 9
+// Boutons
+const keys = {
+  'btn-a':0,'btn-b':1,'btn-select':2,'btn-start':3,
+  'dpad-r':4,'dpad-l':5,'dpad-u':6,'dpad-d':7,
+  'btn-r':8,'btn-l':9
 };
 
-Object.keys(keyMap).forEach(id => {
-  const btn = document.getElementById(id);
-  if (!btn) return;
-  const key = keyMap[id];
-  btn.addEventListener('touchstart', e => { e.preventDefault(); if(gba) gba.keypad.keydown(key); }, {passive:false});
-  btn.addEventListener('touchend', e => { e.preventDefault(); if(gba) gba.keypad.keyup(key); }, {passive:false});
-  btn.addEventListener('mousedown', () => { if(gba) gba.keypad.keydown(key); });
-  btn.addEventListener('mouseup', () => { if(gba) gba.keypad.keyup(key); });
+Object.entries(keys).forEach(([id, key]) => {
+  const el = document.getElementById(id);
+  if (!el) return;
+  const down = e => { e.preventDefault(); if(gba&&gba.keypad) gba.keypad.keydown(key); };
+  const up = e => { e.preventDefault(); if(gba&&gba.keypad) gba.keypad.keyup(key); };
+  el.addEventListener('touchstart', down, {passive:false});
+  el.addEventListener('touchend', up, {passive:false});
+  el.addEventListener('mousedown', down);
+  el.addEventListener('mouseup', up);
 });
 </script>
 </body>
