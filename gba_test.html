@@ -7,104 +7,99 @@
 <title>GBA Test</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
-body{background:#111;display:flex;flex-direction:column;align-items:center;min-height:100vh;font-family:sans-serif;color:#fff}
-#screen{display:block;image-rendering:pixelated;width:100%;max-width:480px;background:#000}
-#status{padding:8px;font-size:12px;color:#aaa;text-align:center}
-.row{display:flex;gap:8px;padding:4px 8px;justify-content:center;align-items:center}
-.btn{padding:14px 22px;background:#333;color:#fff;border:none;border-radius:8px;font-size:14px;cursor:pointer;-webkit-tap-highlight-color:transparent;user-select:none;touch-action:none}
+body{background:#111;display:flex;flex-direction:column;align-items:center;min-height:100vh;color:#fff;font-family:sans-serif}
+#screen{display:block;image-rendering:pixelated;width:100%;max-width:480px;background:#000;aspect-ratio:3/2}
+#status{padding:8px;font-size:12px;color:#aaa;text-align:center;min-height:30px}
+.row{display:flex;gap:8px;padding:4px 8px;justify-content:center;align-items:center;width:100%}
+.btn{padding:14px 18px;background:#333;color:#fff;border:none;border-radius:8px;font-size:14px;cursor:pointer;-webkit-tap-highlight-color:transparent;user-select:none;touch-action:none;flex-shrink:0}
 .btn:active{background:#555}
 .btn-a{background:#CC0000}
-.btn-b{background:#444}
-.btn-load{background:#FFCB05;color:#000;font-weight:bold;padding:14px 30px;width:90%;max-width:300px}
+.btn-b{background:#555}
+.btn-load{background:#FFCB05;color:#000;font-weight:bold;padding:14px;width:90%;max-width:300px;border-radius:10px;border:none;font-size:15px;cursor:pointer}
 </style>
 </head>
 <body>
 
 <canvas id="screen" width="240" height="160"></canvas>
-<div id="status">Charge une ROM pour commencer</div>
+<div id="status">⏳ Chargement émulateur...</div>
 
 <div class="row">
-  <label class="btn btn-load">📁 Charger ROM GBA
+  <label class="btn-load">📁 Charger ROM GBA
     <input type="file" accept="*/*" id="rom-input" style="display:none">
   </label>
 </div>
 
 <div class="row">
   <button class="btn" id="btn-l">L</button>
-  <button class="btn" id="dpad-u">▲</button>
+  <div style="display:grid;grid-template-columns:48px 48px 48px;gap:3px">
+    <div></div><button class="btn" id="dpad-u" style="padding:10px">▲</button><div></div>
+    <button class="btn" id="dpad-l" style="padding:10px">◀</button>
+    <div style="background:#222;border-radius:50%"></div>
+    <button class="btn" id="dpad-r" style="padding:10px">▶</button>
+    <div></div><button class="btn" id="dpad-d" style="padding:10px">▼</button><div></div>
+  </div>
   <button class="btn" id="btn-r">R</button>
-  <button class="btn" id="btn-select">SEL</button>
-  <button class="btn" id="btn-start">STA</button>
+  <div style="display:flex;flex-direction:column;gap:6px">
+    <button class="btn btn-a" id="btn-a">A</button>
+    <button class="btn btn-b" id="btn-b">B</button>
+  </div>
 </div>
 <div class="row">
-  <button class="btn" id="dpad-l">◀</button>
-  <button class="btn" id="dpad-d">▼</button>
-  <button class="btn" id="dpad-r">▶</button>
-  <button class="btn btn-b" id="btn-b">B</button>
-  <button class="btn btn-a" id="btn-a">A</button>
+  <button class="btn" id="btn-select" style="font-size:11px">SELECT</button>
+  <button class="btn" id="btn-start" style="font-size:11px">START</button>
 </div>
 
-<!-- Charge gbajs depuis GitHub raw -->
+<!-- gbajs depuis npm via jsDelivr -->
+<script src="https://cdn.jsdelivr.net/npm/gbajs@1.0.1/js/core/gba.js"></script>
 <script>
-// On charge le script gbajs2 depuis raw.githubusercontent
-const s = document.createElement('script');
-s.src = 'https://raw.githubusercontent.com/andychase/gbajs2/master/js/core/gba.js';
-s.onload = () => document.getElementById('status').textContent = '✅ Émulateur prêt — charge une ROM';
-s.onerror = () => {
-  // Fallback: essaie depuis jsDelivr
-  const s2 = document.createElement('script');
-  s2.src = 'https://cdn.jsdelivr.net/gh/andychase/gbajs2/js/core/gba.js';
-  s2.onload = () => document.getElementById('status').textContent = '✅ Émulateur prêt';
-  s2.onerror = () => document.getElementById('status').textContent = '❌ Erreur de chargement';
-  document.body.appendChild(s2);
-};
-document.body.appendChild(s);
+window.addEventListener('load', function() {
+  if (typeof GameBoyAdvance !== 'undefined') {
+    document.getElementById('status').textContent = '✅ Prêt — charge une ROM GBA';
+  } else {
+    document.getElementById('status').textContent = '❌ Erreur chargement émulateur';
+  }
+});
 
 let gba = null;
 
 document.getElementById('rom-input').addEventListener('change', function(e) {
   const file = e.target.files[0];
   if (!file) return;
-  document.getElementById('status').textContent = '⏳ Chargement de ' + file.name + '...';
+  document.getElementById('status').textContent = '⏳ ' + file.name + '...';
   const reader = new FileReader();
   reader.onload = function(ev) {
     try {
-      if (gba) { try{gba.pause();}catch(e){} gba = null; }
+      if (gba) { try{gba.pause();}catch(x){} gba = null; }
       gba = new GameBoyAdvance();
       gba.setCanvas(document.getElementById('screen'));
       gba.logLevel = gba.LOG_ERROR;
-      gba.setBios(null, true); // bios optionnel
-      const result = gba.setRom(ev.target.result);
-      if (result) {
+      gba.setBios(null, true);
+      if (gba.setRom(ev.target.result)) {
         gba.runStable();
-        document.getElementById('status').textContent = '🎮 En jeu : ' + file.name;
+        document.getElementById('status').textContent = '🎮 ' + file.name;
       } else {
-        document.getElementById('status').textContent = '❌ ROM invalide';
+        document.getElementById('status').textContent = '❌ ROM invalide ou corrompue';
       }
     } catch(err) {
-      document.getElementById('status').textContent = '❌ Erreur: ' + err.message;
-      console.error(err);
+      document.getElementById('status').textContent = '❌ ' + err.message;
     }
   };
   reader.readAsArrayBuffer(file);
 });
 
-// Boutons
 const keys = {
   'btn-a':0,'btn-b':1,'btn-select':2,'btn-start':3,
-  'dpad-r':4,'dpad-l':5,'dpad-u':6,'dpad-d':7,
-  'btn-r':8,'btn-l':9
+  'dpad-r':4,'dpad-l':5,'dpad-u':6,'dpad-d':7,'btn-r':8,'btn-l':9
 };
-
-Object.entries(keys).forEach(([id, key]) => {
+Object.entries(keys).forEach(([id,k]) => {
   const el = document.getElementById(id);
   if (!el) return;
-  const down = e => { e.preventDefault(); if(gba&&gba.keypad) gba.keypad.keydown(key); };
-  const up = e => { e.preventDefault(); if(gba&&gba.keypad) gba.keypad.keyup(key); };
-  el.addEventListener('touchstart', down, {passive:false});
-  el.addEventListener('touchend', up, {passive:false});
-  el.addEventListener('mousedown', down);
-  el.addEventListener('mouseup', up);
+  const dn = e => { e.preventDefault(); if(gba&&gba.keypad) gba.keypad.keydown(k); };
+  const up = e => { e.preventDefault(); if(gba&&gba.keypad) gba.keypad.keyup(k); };
+  el.addEventListener('touchstart',dn,{passive:false});
+  el.addEventListener('touchend',up,{passive:false});
+  el.addEventListener('mousedown',dn);
+  el.addEventListener('mouseup',up);
 });
 </script>
 </body>
