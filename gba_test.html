@@ -112,19 +112,37 @@ document.getElementById('rom-input').addEventListener('change', function(e) {
   reader.readAsArrayBuffer(file);
 });
 
-const keys = {
-  'btn-a':0,'btn-b':1,'btn-select':2,'btn-start':3,
-  'dpad-r':4,'dpad-l':5,'dpad-u':6,'dpad-d':7,'btn-r':8,'btn-l':9
+// Mapping touches → keycodes clavier (mapping gbajs2)
+const keyMap = {
+  'btn-a': 90,      // Z
+  'btn-b': 88,      // X
+  'btn-select': 220, // \
+  'btn-start': 13,  // Enter
+  'dpad-r': 39,     // →
+  'dpad-l': 37,     // ←
+  'dpad-u': 38,     // ↑
+  'dpad-d': 40,     // ↓
+  'btn-r': 83,      // S
+  'btn-l': 65       // A
 };
-Object.entries(keys).forEach(([id,k]) => {
+
+Object.entries(keyMap).forEach(([id, keyCode]) => {
   const el = document.getElementById(id);
   if (!el) return;
-  const dn = e => { e.preventDefault(); if(gba&&gba.keypad) gba.keypad.keydown(k); };
-  const up = e => { e.preventDefault(); if(gba&&gba.keypad) gba.keypad.keyup(k); };
-  el.addEventListener('touchstart',dn,{passive:false});
-  el.addEventListener('touchend',up,{passive:false});
-  el.addEventListener('mousedown',dn);
-  el.addEventListener('mouseup',up);
+  const dn = e => {
+    e.preventDefault();
+    const evt = new KeyboardEvent('keydown', {keyCode, which: keyCode, bubbles: true});
+    document.dispatchEvent(evt);
+  };
+  const up = e => {
+    e.preventDefault();
+    const evt = new KeyboardEvent('keyup', {keyCode, which: keyCode, bubbles: true});
+    document.dispatchEvent(evt);
+  };
+  el.addEventListener('touchstart', dn, {passive: false});
+  el.addEventListener('touchend', up, {passive: false});
+  el.addEventListener('mousedown', dn);
+  el.addEventListener('mouseup', up);
 });
 </script>
 </body>
