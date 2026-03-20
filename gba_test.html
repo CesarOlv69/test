@@ -95,9 +95,6 @@ document.getElementById('rom-input').addEventListener('change', function(e) {
       gba = new GameBoyAdvance();
       gba.setCanvas(document.getElementById('screen'));
       gba.logLevel = gba.LOG_ERROR;
-      // Force le renderer software
-      gba.video.renderer = new GameBoyAdvanceRenderProxy();
-      gba.video.renderer.open(document.getElementById('screen'));
       // Charge le BIOS si disponible
       if (window._gbaBios) {
         gba.setBios(window._gbaBios, false);
