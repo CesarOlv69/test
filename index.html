@@ -1603,15 +1603,47 @@ function gbSaveMeta(){
 function gbGetExt(name){return(name.split('.').pop()||'').toLowerCase();}
 function gbCoreForExt(ext){return ext;}
 
+// Précharge le BIOS au démarrage
+fetch('https://cesarolv69.github.io/test/gba_bios.bin')
+  .then(r=>r.arrayBuffer())
+  .then(b=>{window._gbaBios=b;console.log('BIOS chargé');})
+  .catch(()=>console.log('BIOS non disponible'));
+
+// Précharge les scripts gbajs2
+function gbLoadScripts(cb){
+  if(window._gbaScriptsLoaded){cb();return;}
+  const BASE='https://cesarolv69.github.io/test/';
+  const scripts=[
+    'https://cdn.jsdelivr.net/gh/andychase/gbajs2@master/js/util.js',
+    'https://cdn.jsdelivr.net/gh/andychase/gbajs2@master/js/core.js',
+    'https://cdn.jsdelivr.net/gh/andychase/gbajs2@master/js/arm.js',
+    'https://cdn.jsdelivr.net/gh/andychase/gbajs2@master/js/thumb.js',
+    'https://cdn.jsdelivr.net/gh/andychase/gbajs2@master/js/mmu.js',
+    'https://cdn.jsdelivr.net/gh/andychase/gbajs2@master/js/io.js',
+    'https://cdn.jsdelivr.net/gh/andychase/gbajs2@master/js/audio.js',
+    'https://cdn.jsdelivr.net/gh/andychase/gbajs2@master/js/video.js',
+    BASE+'js/video/software.js',
+    'https://cdn.jsdelivr.net/gh/andychase/gbajs2@master/js/irq.js',
+    'https://cdn.jsdelivr.net/gh/andychase/gbajs2@master/js/keypad.js',
+    'https://cdn.jsdelivr.net/gh/andychase/gbajs2@master/js/sio.js',
+    'https://cdn.jsdelivr.net/gh/andychase/gbajs2@master/js/savedata.js',
+    'https://cdn.jsdelivr.net/gh/andychase/gbajs2@master/js/gpio.js',
+    'https://cdn.jsdelivr.net/gh/andychase/gbajs2@master/js/gba.js',
+  ];
+  let i=0;
+  function loadNext(){
+    if(i>=scripts.length){window._gbaScriptsLoaded=true;cb();return;}
+    const s=document.createElement('script');
+    s.src=scripts[i++];
+    s.onload=loadNext;
+    s.onerror=loadNext;
+    document.body.appendChild(s);
+  }
+  loadNext();
+}
+
 function openGbPlayer(rom){
   gbCurrentRom=rom;
-  const ext=gbGetExt(rom.name);
-
-  // Crée le blob URL de la ROM
-  const romBlob=new Blob([rom.data],{type:'application/octet-stream'});
-  const romUrl=URL.createObjectURL(romBlob);
-
-  // Ouvre l'overlay plein écran
   document.body.style.overflow='hidden';
   gbStartKeepAlive();
 
@@ -1619,93 +1651,76 @@ function openGbPlayer(rom){
   if(overlay)overlay.remove();
   overlay=document.createElement('div');
   overlay.id='gb-fullscreen-overlay';
-  overlay.style.cssText='position:fixed;top:0;left:0;right:0;bottom:0;z-index:99999;background:#000;display:flex;flex-direction:column;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)';
+  overlay.style.cssText='position:fixed;top:0;left:0;right:0;bottom:0;z-index:99999;background:#111;display:flex;flex-direction:column;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)';
   document.body.appendChild(overlay);
 
   // Barre top
   const bar=document.createElement('div');
   bar.style.cssText='display:flex;align-items:center;justify-content:space-between;padding:6px 12px;background:#0a0000;border-bottom:1px solid rgba(255,203,5,.15);flex-shrink:0;height:44px;box-sizing:border-box';
-  bar.innerHTML=`
-    <div style="font-family:Orbitron,monospace;font-size:11px;color:#FFCB05;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1">
-      🎮 ${rom.name.replace(/\.[^.]+$/,'')}
-    </div>
-    <button onclick="closeGbPlayer()" style="background:rgba(204,0,0,.2);border:1px solid rgba(204,0,0,.4);color:#FF6666;border-radius:20px;padding:5px 14px;font-size:12px;font-weight:700;cursor:pointer;font-family:'Exo 2',sans-serif;white-space:nowrap;margin-left:10px;flex-shrink:0">
-      ✕ Quitter
-    </button>`;
+  bar.innerHTML=`<div style="font-family:Orbitron,monospace;font-size:11px;color:#FFCB05;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1">🎮 ${rom.name.replace(/\.[^.]+$/,'')}</div>
+    <button onclick="closeGbPlayer()" style="background:rgba(204,0,0,.2);border:1px solid rgba(204,0,0,.4);color:#FF6666;border-radius:20px;padding:5px 14px;font-size:12px;font-weight:700;cursor:pointer;font-family:'Exo 2',sans-serif;white-space:nowrap;margin-left:10px;flex-shrink:0">✕ Quitter</button>`;
   overlay.appendChild(bar);
 
-  // Zone jeu
-  const gameZone=document.createElement('div');
-  gameZone.style.cssText='flex:1;position:relative;width:100%;overflow:hidden;min-height:0';
-  overlay.appendChild(gameZone);
+  // Canvas
+  const screenWrap=document.createElement('div');
+  screenWrap.style.cssText='background:#000;display:flex;align-items:center;justify-content:center;flex-shrink:0;width:100%';
+  const canvas=document.createElement('canvas');
+  canvas.id='gba-screen';
+  canvas.width=240;canvas.height=160;
+  const scale=Math.floor(window.innerWidth/240);
+  canvas.style.cssText=`display:block;image-rendering:pixelated;width:${240*scale}px;height:${160*scale}px;background:#000`;
+  screenWrap.style.height=(160*scale)+'px';
+  screenWrap.appendChild(canvas);
+  overlay.appendChild(screenWrap);
 
-  const container=document.createElement('div');
-  container.id='ejs-container';
-  container.style.cssText='position:absolute;top:0;left:0;width:100%;height:100%';
-  gameZone.appendChild(container);
+  // Contrôles
+  const ctrl=document.createElement('div');
+  ctrl.style.cssText='flex:1;display:flex;align-items:center;justify-content:space-around;padding:8px 16px;box-sizing:border-box;width:100%';
+  ctrl.innerHTML=`
+    <div style="display:grid;grid-template-columns:48px 48px 48px;grid-template-rows:48px 48px 48px;gap:2px">
+      <div></div><button class="gcb" id="gba-u">▲</button><div></div>
+      <button class="gcb" id="gba-l">◀</button><div style="background:#222;border-radius:50%"></div><button class="gcb" id="gba-r">▶</button>
+      <div></div><button class="gcb" id="gba-d">▼</button><div></div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:8px;align-items:center">
+      <button class="gcb" id="gba-sel" style="font-size:10px;padding:8px 12px">SEL</button>
+      <button class="gcb" id="gba-sta" style="font-size:10px;padding:8px 12px">STA</button>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:10px">
+      <button class="gcb" id="gba-a" style="background:linear-gradient(145deg,#CC0000,#880000);width:52px;height:52px;border-radius:50%">A</button>
+      <button class="gcb" id="gba-b" style="width:52px;height:52px;border-radius:50%">B</button>
+    </div>`;
 
-  document.querySelectorAll('script[data-ejs]').forEach(s=>s.remove());
+  const st=document.createElement('style');
+  st.textContent='.gcb{background:#2a2a2a;border:none;color:#ccc;font-size:16px;border-radius:6px;cursor:pointer;-webkit-tap-highlight-color:transparent;touch-action:none;user-select:none;width:48px;height:48px;display:flex;align-items:center;justify-content:center}.gcb:active{background:#444}';
+  overlay.appendChild(st);
+  overlay.appendChild(ctrl);
 
-  // Config EmulatorJS avec options anti-crash maximales
-  window.EJS_player='#ejs-container';
-  window.EJS_core=ext==='gba'?'gba':'gambatte';
-  window.EJS_gameUrl=romUrl;
-  window.EJS_pathtodata='https://cdn.emulatorjs.org/stable/data/';
-  window.EJS_startOnLoaded=true;
-  window.EJS_threads=false;
-  window.EJS_language='en-US';
-  window.EJS_gameID=rom.name.replace(/[^a-zA-Z0-9]/g,'_');
-  window.EJS_defaultOptions={
-    'frameskip': ext==='gba'?'1':'0',
-    'rewind-enable':'0',
-    'save-state-auto-save':'0',
-    'cpu-overclock':'0',
-  };
-  window.EJS_onGameStart=function(){
-    URL.revokeObjectURL(romUrl);
-  };
+  // Bind boutons
+  const keyMap={'gba-a':90,'gba-b':88,'gba-sel':220,'gba-sta':13,'gba-r':39,'gba-l':37,'gba-u':38,'gba-d':40};
+  Object.entries(keyMap).forEach(([id,kc])=>{
+    const el=document.getElementById(id);
+    if(!el)return;
+    const dn=e=>{e.preventDefault();document.dispatchEvent(new KeyboardEvent('keydown',{keyCode:kc,which:kc,bubbles:true}));};
+    const up=e=>{e.preventDefault();document.dispatchEvent(new KeyboardEvent('keyup',{keyCode:kc,which:kc,bubbles:true}));};
+    el.addEventListener('touchstart',dn,{passive:false});
+    el.addEventListener('touchend',up,{passive:false});
+    el.addEventListener('mousedown',dn);
+    el.addEventListener('mouseup',up);
+  });
 
-  // Force navigator.language — EmulatorJS lit ça pour choisir fr-FR.json
-  try{
-    Object.defineProperty(navigator,'language',{get:()=>'en-US',configurable:true});
-    Object.defineProperty(navigator,'languages',{get:()=>['en-US','en'],configurable:true});
-  }catch(e){}
-
-  // Intercepte toute fermeture non voulue d'EmulatorJS
-  const origRemoveChild=Element.prototype.removeChild;
-  Element.prototype.removeChild=function(child){
-    if(child&&child.id==='ejs-container'&&gbCurrentRom){
-      console.log('EmulatorJS tried to remove ejs-container — blocked');
-      return child;
-    }
-    return origRemoveChild.call(this,child);
-  };
-  window._ejsRemoveChildPatch=origRemoveChild;
-
-  // Bloque history.back() d'EmulatorJS qui ferme l'overlay en PWA
-  const origHistoryBack=history.back.bind(history);
-  history.back=function(){
-    if(gbCurrentRom){
-      console.log('history.back() blocked during game');
-      return;
-    }
-    origHistoryBack();
-  };
-  window._ejsHistoryBackPatch=origHistoryBack;
-
-  // Bloque popstate qui peut déclencher la fermeture
-  window._ejsPopstateHandler=function(e){
-    if(gbCurrentRom){
-      e.stopImmediatePropagation();
-      history.pushState(null,'',location.href);
-    }
-  };
-  window.addEventListener('popstate',window._ejsPopstateHandler,true);
-
-  const script=document.createElement('script');
-  script.src='https://cdn.emulatorjs.org/stable/data/loader.js';
-  script.setAttribute('data-ejs','1');
-  document.body.appendChild(script);
+  // Charge gbajs2 et démarre
+  gbLoadScripts(()=>{
+    try{
+      window._gbaInstance=new GameBoyAdvance();
+      window._gbaInstance.setCanvas(canvas);
+      window._gbaInstance.logLevel=window._gbaInstance.LOG_ERROR;
+      if(window._gbaBios) window._gbaInstance.setBios(window._gbaBios,false);
+      if(window._gbaInstance.setRom(rom.data)){
+        window._gbaInstance.runStable();
+      }
+    }catch(e){console.error('GBA error:',e);}
+  });
 }
 
 function gbWorkerKey(){}
@@ -1713,18 +1728,9 @@ function gbWorkerKey(){}
 function closeGbPlayer(){
   gbStopKeepAlive();
   document.body.style.overflow='';
-  // Restore tous les patches
-  if(window._ejsRemoveChildPatch){Element.prototype.removeChild=window._ejsRemoveChildPatch;delete window._ejsRemoveChildPatch;}
-  if(window._ejsHistoryBackPatch){history.back=window._ejsHistoryBackPatch;delete window._ejsHistoryBackPatch;}
-  if(window._ejsPopstateHandler){window.removeEventListener('popstate',window._ejsPopstateHandler,true);delete window._ejsPopstateHandler;}
-  try{if(window.EJS_emulator)window.EJS_emulator.pause();}catch(e){}
+  try{if(window._gbaInstance){window._gbaInstance.pause();window._gbaInstance=null;}}catch(e){}
   const overlay=document.getElementById('gb-fullscreen-overlay');
   if(overlay)overlay.remove();
-  document.querySelectorAll('script[data-ejs],script[data-gbo]').forEach(s=>s.remove());
-  ['EJS_player','EJS_core','EJS_gameUrl','EJS_pathtodata','EJS_startOnLoaded',
-   'EJS_threads','EJS_defaultOptions','EJS_emulator','EJS_onGameStart'].forEach(k=>{
-    try{delete window[k];}catch(e){}
-  });
   gbCurrentRom=null;
 }
 function gbFormatSize(bytes){if(bytes<1024)return bytes+' B';if(bytes<1024*1024)return(bytes/1024).toFixed(0)+' KB';return(bytes/1024/1024).toFixed(1)+' MB';}
