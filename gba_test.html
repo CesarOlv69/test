@@ -73,6 +73,17 @@ window.addEventListener('load', function() {
 
 let gba = null;
 
+// Charge le BIOS au démarrage
+fetch('./gba_bios.bin')
+  .then(r => r.arrayBuffer())
+  .then(bios => {
+    window._gbaBios = bios;
+    document.getElementById('status').textContent = '✅ Prêt — charge une ROM GBA';
+  })
+  .catch(() => {
+    document.getElementById('status').textContent = '⚠️ BIOS non trouvé — charge la ROM quand même';
+  });
+
 document.getElementById('rom-input').addEventListener('change', function(e) {
   const file = e.target.files[0];
   if (!file) return;
@@ -84,7 +95,10 @@ document.getElementById('rom-input').addEventListener('change', function(e) {
       gba = new GameBoyAdvance();
       gba.setCanvas(document.getElementById('screen'));
       gba.logLevel = gba.LOG_ERROR;
-      // gbajs2 : pas besoin de BIOS, on passe directement à la ROM
+      // Charge le BIOS si disponible
+      if (window._gbaBios) {
+        gba.setBios(window._gbaBios, false);
+      }
       if (gba.setRom(ev.target.result)) {
         gba.runStable();
         document.getElementById('status').textContent = '🎮 ' + file.name;
